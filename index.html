@@ -213,6 +213,13 @@
       border-color: #e1e6ee;
     }
 
+    .ghost.active-step {
+      color: #173c92;
+      background: #eaf1ff;
+      border-color: #9db7e8;
+      font-weight: 700;
+    }
+
     .examples {
       margin-top: 18px;
       display: grid;
@@ -1207,6 +1214,47 @@
       return item && Number.isFinite(Number(item.stage)) ? Number(item.stage) : 0;
     }
 
+    function hasExplicitStages(spec) {
+      const groups = ["points", "segments", "polylines", "texts", "markers"];
+      return groups.some((group) => Array.isArray(spec[group]) && spec[group].some((item) => stageValue(item) > 0));
+    }
+
+    function inferStageForText(item) {
+      const text = String(item.text || item.label || "");
+      if (/因此|所以|结论|面积|=|数量关系|等腰|全等/.test(text)) return 3;
+      if (/作|连接|延长|截取|角平分线|垂线|辅助线|AE=AC|DE/.test(text)) return 1;
+      if (/证明|对应|相等|角|2∠|补角|全等/.test(text)) return 2;
+      if (item.tone === "green") return 2;
+      if (item.tone === "blue") return 3;
+      return 0;
+    }
+
+    function withInferredStage(item, group) {
+      if (stageValue(item) > 0) return item;
+      if (group === "segments" || group === "polylines") {
+        if (item.style === "work") return { ...item, stage: 1 };
+        return item;
+      }
+      if (group === "texts" || group === "markers") {
+        const stage = inferStageForText(item);
+        return stage > 0 ? { ...item, stage } : item;
+      }
+      return item;
+    }
+
+    function normalizeDiagramSpec(spec) {
+      if (!spec || typeof spec !== "object") return spec;
+      if (hasExplicitStages(spec)) return spec;
+      return {
+        ...spec,
+        points: Array.isArray(spec.points) ? spec.points.map((item) => withInferredStage(item, "points")) : [],
+        segments: Array.isArray(spec.segments) ? spec.segments.map((item) => withInferredStage(item, "segments")) : [],
+        polylines: Array.isArray(spec.polylines) ? spec.polylines.map((item) => withInferredStage(item, "polylines")) : [],
+        texts: Array.isArray(spec.texts) ? spec.texts.map((item) => withInferredStage(item, "texts")) : [],
+        markers: Array.isArray(spec.markers) ? spec.markers.map((item) => withInferredStage(item, "markers")) : []
+      };
+    }
+
     function toneClass(tone) {
       if (tone === "green") return "green-text";
       if (tone === "gold") return "gold-text";
@@ -1355,7 +1403,9 @@
           ? payload.knowledge
           : (fallbackStrategy ? fallbackStrategy.knowledge : ["几何题型识别"]),
         signals: Array.isArray(payload.signals) ? payload.signals : [],
-        diagramSpec: payload.diagramSpec && typeof payload.diagramSpec === "object" ? payload.diagramSpec : null,
+        diagramSpec: payload.diagramSpec && typeof payload.diagramSpec === "object"
+          ? normalizeDiagramSpec(payload.diagramSpec)
+          : null,
         visualSteps: Array.isArray(payload.visualSteps) ? payload.visualSteps : [],
         hint1: payload.hint1 || (fallbackStrategy ? fallbackStrategy.hint1 : "先整理已知条件，再判断题目需要证明哪类关系。"),
         hint2: payload.hint2 || (fallbackStrategy ? fallbackStrategy.hint2 : "根据目标关系，尝试构造全等、相似、平行或垂直。"),
@@ -1486,6 +1536,10 @@
       [drawAuxBtn, moveAnglesBtn, combineAnglesBtn, resetVisualBtn].forEach((button) => {
         button.disabled = false;
       });
+      drawAuxBtn.classList.toggle("active-step", stage === 1);
+      moveAnglesBtn.classList.toggle("active-step", stage === 2);
+      combineAnglesBtn.classList.toggle("active-step", stage === 3);
+      resetVisualBtn.classList.toggle("active-step", stage === 0);
       drawAuxBtn.textContent = visualType === "rotation" ? "1. 连接 CD" : "1. 画辅助线";
       moveAnglesBtn.textContent = visualType === "rotation" ? "2. 作高 DE" : "2. 搬角度";
       combineAnglesBtn.textContent = visualType === "rotation" ? "3. 说明面积" : "3. 合成答案";
