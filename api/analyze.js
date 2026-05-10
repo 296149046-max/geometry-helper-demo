@@ -11,9 +11,19 @@ const SYSTEM_PROMPT = `
    - parallel-broken-angle / parallel_broken_angle
    - parallel-above-angle / parallel_above_angle
    - rotation-height-area / rotation_height_area
-4. 如果不适合这三种图例，就把 strategyId 填为 none，diagramType 填为 none。
+4. 如果不适合这三种图例，也要尽量生成一个 diagramSpec，用于前端动态绘图。
 5. solution 必须是字符串数组。
 6. conditions、signals、knowledge 都必须是字符串数组。
+7. visualSteps 必须是长度 3 以内的数组，每项包含 label 和 description。
+8. diagramSpec 要尽量简单，坐标范围按 width 640、height 340 组织。
+9. diagramSpec 中可用字段：
+   - points: [{ x, y, label?, labelDx?, labelDy?, stage? }]
+   - segments: [{ x1, y1, x2, y2, style: "base"|"fold"|"work", label?, labelX?, labelY?, tone?, stage? }]
+   - polylines: [{ points: "x1,y1 x2,y2 ...", style: "base"|"fold"|"work", label?, labelX?, labelY?, tone?, stage? }]
+   - texts: [{ x, y, text, kind: "line"|"angle"|"point", tone?: "blue"|"green"|"gold", stage? }]
+   - markers:
+     * angleArc: { type: "angleArc", path, text?, textX?, textY?, tone?, arcClass?, stage? }
+     * rightAngle: { type: "rightAngle", path, arcClass?, stage? }
 
 JSON 字段：
 {
@@ -27,7 +37,17 @@ JSON 字段：
   "hint1": string,
   "hint2": string,
   "solution": string[],
-  "summary": string
+  "summary": string,
+  "visualSteps": [{ "label": string, "description": string }],
+  "diagramSpec": {
+    "width": number,
+    "height": number,
+    "points": [],
+    "segments": [],
+    "polylines": [],
+    "texts": [],
+    "markers": []
+  }
 }
 `.trim();
 

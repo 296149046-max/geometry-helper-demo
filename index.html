@@ -815,6 +815,7 @@
                       <text class="angle-label blue-text" x="198" y="76">= 1/2 × a × a = 1/2a²</text>
                     </g>
                   </svg>
+                  <svg class="diagram hidden" id="genericDiagram" viewBox="0 0 640 340" role="img" aria-label="模型生成的几何动态图"></svg>
                 </div>
                 <div class="visual-steps">
                   <h3>操作步骤</h3>
@@ -1103,6 +1104,7 @@
     const resetVisualBtn = document.querySelector("#resetVisualBtn");
     const aboveParallelDiagram = document.querySelector("#aboveParallelDiagram");
     const rotationAreaDiagram = document.querySelector("#rotationAreaDiagram");
+    const genericDiagram = document.querySelector("#genericDiagram");
 
     let currentMatches = [];
     let currentVisualStage = 0;
@@ -1193,6 +1195,132 @@
       strategyCount.textContent = `${matches.length} 个策略`;
     }
 
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function stageValue(item) {
+      return item && Number.isFinite(Number(item.stage)) ? Number(item.stage) : 0;
+    }
+
+    function toneClass(tone) {
+      if (tone === "green") return "green-text";
+      if (tone === "gold") return "gold-text";
+      return "blue-text";
+    }
+
+    function segmentClass(style) {
+      if (style === "work") return "work-line";
+      if (style === "fold") return "fold-line";
+      return "base-line";
+    }
+
+    function pointCircle(point, stage) {
+      const cls = stage > 0 ? `stage-item stage-${stage}` : "";
+      const fill = point.color || "#111827";
+      return `<circle class="${cls}" cx="${point.x}" cy="${point.y}" r="${point.r || 5}" fill="${fill}"></circle>`;
+    }
+
+    function pointLabel(point, stage) {
+      if (!point.label) return "";
+      const cls = stage > 0 ? `point-label ${point.colorClass || ""} stage-item stage-${stage}`.trim() : "point-label";
+      const dx = Number.isFinite(Number(point.labelDx)) ? Number(point.labelDx) : 8;
+      const dy = Number.isFinite(Number(point.labelDy)) ? Number(point.labelDy) : -8;
+      return `<text class="${cls}" x="${point.x + dx}" y="${point.y + dy}">${escapeHtml(point.label)}</text>`;
+    }
+
+    function lineLabel(item, stage) {
+      if (!item.label) return "";
+      const cls = stage > 0
+        ? `line-label ${toneClass(item.tone)} stage-item stage-${stage}`.trim()
+        : `line-label ${toneClass(item.tone)}`.trim();
+      return `<text class="${cls}" x="${item.labelX}" y="${item.labelY}">${escapeHtml(item.label)}</text>`;
+    }
+
+    function renderAngleArc(marker, stage) {
+      const cls = stage > 0
+        ? `angle-arc ${marker.arcClass || "arc-turn"} stage-item stage-${stage}`.trim()
+        : `angle-arc ${marker.arcClass || "arc-turn"}`.trim();
+      const labelCls = stage > 0
+        ? `angle-label ${toneClass(marker.tone)} stage-item stage-${stage}`.trim()
+        : `angle-label ${toneClass(marker.tone)}`.trim();
+      return `
+        <path class="${cls}" d="${marker.path}"></path>
+        ${marker.text ? `<text class="${labelCls}" x="${marker.textX}" y="${marker.textY}">${escapeHtml(marker.text)}</text>` : ""}
+      `;
+    }
+
+    function renderRightAngle(marker, stage) {
+      const cls = stage > 0
+        ? `angle-arc ${marker.arcClass || "arc-turn"} stage-item stage-${stage}`.trim()
+        : `angle-arc ${marker.arcClass || "arc-turn"}`.trim();
+      return `<path class="${cls}" d="${marker.path}"></path>`;
+    }
+
+    function renderGenericDiagram(spec) {
+      if (!spec || typeof spec !== "object") {
+        genericDiagram.innerHTML = "";
+        return;
+      }
+
+      const width = spec.width || 640;
+      const height = spec.height || 340;
+      genericDiagram.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+      const segments = Array.isArray(spec.segments) ? spec.segments : [];
+      const polylines = Array.isArray(spec.polylines) ? spec.polylines : [];
+      const points = Array.isArray(spec.points) ? spec.points : [];
+      const texts = Array.isArray(spec.texts) ? spec.texts : [];
+      const markers = Array.isArray(spec.markers) ? spec.markers : [];
+
+      const linesMarkup = segments.map((segment) => {
+        const stage = stageValue(segment);
+        const cls = stage > 0
+          ? `${segmentClass(segment.style)} stage-item stage-${stage}`.trim()
+          : segmentClass(segment.style);
+        return `
+          <line class="${cls}" x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}"></line>
+          ${lineLabel(segment, stage)}
+        `;
+      }).join("");
+
+      const polyMarkup = polylines.map((polyline) => {
+        const stage = stageValue(polyline);
+        const cls = stage > 0
+          ? `${segmentClass(polyline.style)} stage-item stage-${stage}`.trim()
+          : segmentClass(polyline.style);
+        return `
+          <polyline class="${cls}" points="${polyline.points}"></polyline>
+          ${lineLabel(polyline, stage)}
+        `;
+      }).join("");
+
+      const pointMarkup = points.map((point) => {
+        const stage = stageValue(point);
+        return `${pointCircle(point, stage)}${pointLabel(point, stage)}`;
+      }).join("");
+
+      const textMarkup = texts.map((item) => {
+        const stage = stageValue(item);
+        const cls = stage > 0
+          ? `${item.kind === "angle" ? "angle-label" : item.kind === "point" ? "point-label" : "line-label"} ${toneClass(item.tone)} stage-item stage-${stage}`.trim()
+          : `${item.kind === "angle" ? "angle-label" : item.kind === "point" ? "point-label" : "line-label"} ${toneClass(item.tone)}`.trim();
+        return `<text class="${cls}" x="${item.x}" y="${item.y}">${escapeHtml(item.text)}</text>`;
+      }).join("");
+
+      const markerMarkup = markers.map((marker) => {
+        const stage = stageValue(marker);
+        if (marker.type === "rightAngle") return renderRightAngle(marker, stage);
+        return renderAngleArc(marker, stage);
+      }).join("");
+
+      genericDiagram.innerHTML = `${linesMarkup}${polyMarkup}${pointMarkup}${textMarkup}${markerMarkup}`;
+    }
+
     function renderAnalysisResult({ conditions, matches, signals, score, subtitleText, summaryText }) {
       currentMatches = matches;
       emptyState.classList.add("hidden");
@@ -1227,6 +1355,8 @@
           ? payload.knowledge
           : (fallbackStrategy ? fallbackStrategy.knowledge : ["几何题型识别"]),
         signals: Array.isArray(payload.signals) ? payload.signals : [],
+        diagramSpec: payload.diagramSpec && typeof payload.diagramSpec === "object" ? payload.diagramSpec : null,
+        visualSteps: Array.isArray(payload.visualSteps) ? payload.visualSteps : [],
         hint1: payload.hint1 || (fallbackStrategy ? fallbackStrategy.hint1 : "先整理已知条件，再判断题目需要证明哪类关系。"),
         hint2: payload.hint2 || (fallbackStrategy ? fallbackStrategy.hint2 : "根据目标关系，尝试构造全等、相似、平行或垂直。"),
         solution: Array.isArray(payload.solution) && payload.solution.length
@@ -1308,13 +1438,20 @@
       return currentMatches.some((match) => match.id === "rotation-height-area");
     }
 
+    function hasGenericDiagram() {
+      return currentMatches.some((match) => match.diagramSpec);
+    }
+
     function setVisualStage(stage) {
       currentVisualStage = stage;
       parallelDiagram.classList.remove("show-stage-1", "show-stage-2", "show-stage-3", "ghosted");
       aboveParallelDiagram.classList.remove("show-stage-1", "show-stage-2", "show-stage-3", "ghosted");
       rotationAreaDiagram.classList.remove("show-stage-1", "show-stage-2", "show-stage-3", "ghosted");
+      genericDiagram.classList.remove("show-stage-1", "show-stage-2", "show-stage-3", "ghosted");
 
-      const visualType = hasRotationHeightArea()
+      const visualType = hasGenericDiagram()
+        ? "generic"
+        : hasRotationHeightArea()
         ? "rotation"
         : hasParallelAboveAngle()
         ? "above"
@@ -1323,17 +1460,21 @@
           : "none";
       const activeDiagram = visualType === "rotation"
         ? rotationAreaDiagram
+        : visualType === "generic"
+          ? genericDiagram
         : visualType === "above"
           ? aboveParallelDiagram
           : parallelDiagram;
-      parallelDiagram.classList.toggle("hidden", visualType === "above" || visualType === "rotation");
+      parallelDiagram.classList.toggle("hidden", visualType === "above" || visualType === "rotation" || visualType === "generic");
       aboveParallelDiagram.classList.toggle("hidden", visualType !== "above");
       rotationAreaDiagram.classList.toggle("hidden", visualType !== "rotation");
+      genericDiagram.classList.toggle("hidden", visualType !== "generic");
 
       if (visualType === "none") {
         parallelDiagram.classList.add("ghosted");
         aboveParallelDiagram.classList.add("ghosted");
         rotationAreaDiagram.classList.add("ghosted");
+        genericDiagram.classList.add("ghosted");
         visualStatus.textContent = "暂无专属图例";
         visualCopy.textContent = "这类题的图上演示还没有配置。后续可以按题型继续补：等腰三角形、中位线、圆与切线等。";
         [drawAuxBtn, moveAnglesBtn, combineAnglesBtn, resetVisualBtn].forEach((button) => {
@@ -1349,7 +1490,9 @@
       moveAnglesBtn.textContent = visualType === "rotation" ? "2. 作高 DE" : "2. 搬角度";
       combineAnglesBtn.textContent = visualType === "rotation" ? "3. 说明面积" : "3. 合成答案";
 
-      visualStatus.textContent = visualType === "rotation"
+      visualStatus.textContent = visualType === "generic"
+        ? "模型生成图例"
+        : visualType === "rotation"
         ? "旋转作高求面积演示"
         : visualType === "above"
           ? "P 在平行线上方演示"
@@ -1357,6 +1500,26 @@
       if (stage >= 1) activeDiagram.classList.add("show-stage-1");
       if (stage >= 2) activeDiagram.classList.add("show-stage-2");
       if (stage >= 3) activeDiagram.classList.add("show-stage-3");
+
+      if (visualType === "generic") {
+        const main = currentMatches[0];
+        renderGenericDiagram(main.diagramSpec);
+        const stepLabels = Array.isArray(main.visualSteps) ? main.visualSteps : [];
+        drawAuxBtn.textContent = stepLabels[0] ? `1. ${stepLabels[0].label || "画辅助线"}` : "1. 画辅助线";
+        moveAnglesBtn.textContent = stepLabels[1] ? `2. ${stepLabels[1].label || "继续操作"}` : "2. 继续操作";
+        combineAnglesBtn.textContent = stepLabels[2] ? `3. ${stepLabels[2].label || "整理结论"}` : "3. 整理结论";
+        if (stage === 0) {
+          visualCopy.textContent = stepLabels[0] && stepLabels[0].description
+            ? stepLabels[0].description
+            : "先观察模型根据题意生成的基础图形。";
+        } else {
+          const currentStep = stepLabels[Math.min(stage - 1, stepLabels.length - 1)];
+          visualCopy.textContent = currentStep && currentStep.description
+            ? currentStep.description
+            : "按照题意在图上逐步补出辅助线并整理结论。";
+        }
+        return;
+      }
 
       if (visualType === "rotation") {
         if (stage === 0) {
