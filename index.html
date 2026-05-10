@@ -501,6 +501,31 @@
       transition: opacity 0.24s ease, transform 0.24s ease;
     }
 
+    .generic-item {
+      transition: opacity 0.2s ease, stroke 0.2s ease, fill 0.2s ease;
+    }
+
+    .generic-dim {
+      opacity: 0.2;
+    }
+
+    .generic-focus-stroke {
+      stroke: #2563eb !important;
+      stroke-width: 5 !important;
+      opacity: 1 !important;
+    }
+
+    .generic-focus-fill {
+      fill: #2563eb !important;
+      opacity: 1 !important;
+    }
+
+    .generic-focus-text {
+      fill: #1d4ed8 !important;
+      font-weight: 700;
+      opacity: 1 !important;
+    }
+
     .show-stage-1 .stage-1,
     .show-stage-2 .stage-1,
     .show-stage-2 .stage-2,
@@ -1115,6 +1140,7 @@
 
     let currentMatches = [];
     let currentVisualStage = 0;
+    let currentGenericMeta = [];
 
     const diagramTypeToStrategyId = {
       parallel_broken_angle: "parallel-broken-angle",
@@ -1214,6 +1240,38 @@
       return item && Number.isFinite(Number(item.stage)) ? Number(item.stage) : 0;
     }
 
+    function pointKey(label, index) {
+      return label ? `point-${label}` : `point-${index}`;
+    }
+
+    function exactPointLabel(pointMap, x, y) {
+      return pointMap.get(`${x},${y}`) || null;
+    }
+
+    function refsFromPolyline(pointsText, pointMap) {
+      const refs = String(pointsText || "")
+        .trim()
+        .split(/\s+/)
+        .map((pair) => pair.split(","))
+        .map(([x, y]) => exactPointLabel(pointMap, Number(x), Number(y)))
+        .filter(Boolean);
+      return [...new Set(refs)];
+    }
+
+    function refsFromSegment(item, pointMap) {
+      const refs = [
+        exactPointLabel(pointMap, Number(item.x1), Number(item.y1)),
+        exactPointLabel(pointMap, Number(item.x2), Number(item.y2))
+      ].filter(Boolean);
+      return [...new Set(refs)];
+    }
+
+    function refsFromText(item) {
+      const text = String(item.text || item.label || "");
+      const groups = text.match(/[A-Z]{1,4}/g);
+      return groups ? [...new Set(groups.join("").split("").filter(Boolean))] : [];
+    }
+
     function hasExplicitStages(spec) {
       const groups = ["points", "segments", "polylines", "texts", "markers"];
       return groups.some((group) => Array.isArray(spec[group]) && spec[group].some((item) => stageValue(item) > 0));
@@ -1267,18 +1325,18 @@
       return "base-line";
     }
 
-    function pointCircle(point, stage) {
+    function pointCircle(point, stage, dataKey) {
       const cls = stage > 0 ? `stage-item stage-${stage}` : "";
       const fill = point.color || "#111827";
-      return `<circle class="${cls}" cx="${point.x}" cy="${point.y}" r="${point.r || 5}" fill="${fill}"></circle>`;
+      return `<circle class="${`generic-item ${cls}`.trim()}" data-key="${dataKey}" cx="${point.x}" cy="${point.y}" r="${point.r || 5}" fill="${fill}"></circle>`;
     }
 
-    function pointLabel(point, stage) {
+    function pointLabel(point, stage, dataKey) {
       if (!point.label) return "";
       const cls = stage > 0 ? `point-label ${point.colorClass || ""} stage-item stage-${stage}`.trim() : "point-label";
       const dx = Number.isFinite(Number(point.labelDx)) ? Number(point.labelDx) : 8;
       const dy = Number.isFinite(Number(point.labelDy)) ? Number(point.labelDy) : -8;
-      return `<text class="${cls}" x="${point.x + dx}" y="${point.y + dy}">${escapeHtml(point.label)}</text>`;
+      return `<text class="generic-item ${cls}" data-key="${dataKey}-label" x="${point.x + dx}" y="${point.y + dy}">${escapeHtml(point.label)}</text>`;
     }
 
     function lineLabel(item, stage) {
@@ -1312,61 +1370,139 @@
     function renderGenericDiagram(spec) {
       if (!spec || typeof spec !== "object") {
         genericDiagram.innerHTML = "";
+        currentGenericMeta = [];
         return;
       }
 
       const width = spec.width || 640;
       const height = spec.height || 340;
       genericDiagram.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      currentGenericMeta = [];
 
       const segments = Array.isArray(spec.segments) ? spec.segments : [];
       const polylines = Array.isArray(spec.polylines) ? spec.polylines : [];
       const points = Array.isArray(spec.points) ? spec.points : [];
       const texts = Array.isArray(spec.texts) ? spec.texts : [];
       const markers = Array.isArray(spec.markers) ? spec.markers : [];
+      const pointMap = new Map();
+      points.forEach((point, index) => {
+        if (point.label) pointMap.set(`${Number(point.x)},${Number(point.y)}`, point.label);
+      });
 
-      const linesMarkup = segments.map((segment) => {
+      const linesMarkup = segments.map((segment, index) => {
         const stage = stageValue(segment);
         const cls = stage > 0
           ? `${segmentClass(segment.style)} stage-item stage-${stage}`.trim()
           : segmentClass(segment.style);
+        const dataKey = `segment-${index}`;
+        const refs = refsFromSegment(segment, pointMap);
+        currentGenericMeta.push({ key: dataKey, refs, label: segment.label || "", kind: "segment" });
         return `
-          <line class="${cls}" x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}"></line>
+          <line class="generic-item ${cls}" data-key="${dataKey}" x1="${segment.x1}" y1="${segment.y1}" x2="${segment.x2}" y2="${segment.y2}"></line>
           ${lineLabel(segment, stage)}
         `;
       }).join("");
 
-      const polyMarkup = polylines.map((polyline) => {
+      const polyMarkup = polylines.map((polyline, index) => {
         const stage = stageValue(polyline);
         const cls = stage > 0
           ? `${segmentClass(polyline.style)} stage-item stage-${stage}`.trim()
           : segmentClass(polyline.style);
+        const dataKey = `polyline-${index}`;
+        const refs = refsFromPolyline(polyline.points, pointMap);
+        currentGenericMeta.push({ key: dataKey, refs, label: polyline.label || "", kind: "polyline" });
         return `
-          <polyline class="${cls}" points="${polyline.points}"></polyline>
+          <polyline class="generic-item ${cls}" data-key="${dataKey}" points="${polyline.points}"></polyline>
           ${lineLabel(polyline, stage)}
         `;
       }).join("");
 
-      const pointMarkup = points.map((point) => {
+      const pointMarkup = points.map((point, index) => {
         const stage = stageValue(point);
-        return `${pointCircle(point, stage)}${pointLabel(point, stage)}`;
+        const dataKey = pointKey(point.label, index);
+        currentGenericMeta.push({ key: dataKey, refs: point.label ? [point.label] : [], label: point.label || "", kind: "point" });
+        currentGenericMeta.push({ key: `${dataKey}-label`, refs: point.label ? [point.label] : [], label: point.label || "", kind: "pointLabel" });
+        return `${pointCircle(point, stage, dataKey)}${pointLabel(point, stage, dataKey)}`;
       }).join("");
 
-      const textMarkup = texts.map((item) => {
+      const textMarkup = texts.map((item, index) => {
         const stage = stageValue(item);
         const cls = stage > 0
           ? `${item.kind === "angle" ? "angle-label" : item.kind === "point" ? "point-label" : "line-label"} ${toneClass(item.tone)} stage-item stage-${stage}`.trim()
           : `${item.kind === "angle" ? "angle-label" : item.kind === "point" ? "point-label" : "line-label"} ${toneClass(item.tone)}`.trim();
-        return `<text class="${cls}" x="${item.x}" y="${item.y}">${escapeHtml(item.text)}</text>`;
+        const dataKey = `text-${index}`;
+        currentGenericMeta.push({ key: dataKey, refs: refsFromText(item), label: item.text || "", kind: "text" });
+        return `<text class="generic-item ${cls}" data-key="${dataKey}" x="${item.x}" y="${item.y}">${escapeHtml(item.text)}</text>`;
       }).join("");
 
-      const markerMarkup = markers.map((marker) => {
+      const markerMarkup = markers.map((marker, index) => {
         const stage = stageValue(marker);
-        if (marker.type === "rightAngle") return renderRightAngle(marker, stage);
-        return renderAngleArc(marker, stage);
+        const dataKey = `marker-${index}`;
+        currentGenericMeta.push({ key: dataKey, refs: refsFromText(marker), label: marker.text || "", kind: "marker" });
+        if (marker.type === "rightAngle") {
+          const cls = stage > 0
+            ? `generic-item angle-arc ${marker.arcClass || "arc-turn"} stage-item stage-${stage}`.trim()
+            : `generic-item angle-arc ${marker.arcClass || "arc-turn"}`.trim();
+          return `<path class="${cls}" data-key="${dataKey}" d="${marker.path}"></path>`;
+        }
+        const cls = stage > 0
+          ? `generic-item angle-arc ${marker.arcClass || "arc-turn"} stage-item stage-${stage}`.trim()
+          : `generic-item angle-arc ${marker.arcClass || "arc-turn"}`.trim();
+        const labelCls = stage > 0
+          ? `generic-item angle-label ${toneClass(marker.tone)} stage-item stage-${stage}`.trim()
+          : `generic-item angle-label ${toneClass(marker.tone)}`.trim();
+        currentGenericMeta.push({ key: `${dataKey}-label`, refs: refsFromText(marker), label: marker.text || "", kind: "markerLabel" });
+        return `
+          <path class="${cls}" data-key="${dataKey}" d="${marker.path}"></path>
+          ${marker.text ? `<text class="${labelCls}" data-key="${dataKey}-label" x="${marker.textX}" y="${marker.textY}">${escapeHtml(marker.text)}</text>` : ""}
+        `;
       }).join("");
 
       genericDiagram.innerHTML = `${linesMarkup}${polyMarkup}${pointMarkup}${textMarkup}${markerMarkup}`;
+    }
+
+    function clearGenericFocus() {
+      genericDiagram.querySelectorAll(".generic-item").forEach((node) => {
+        node.classList.remove("generic-dim", "generic-focus-stroke", "generic-focus-fill", "generic-focus-text");
+      });
+    }
+
+    function applyGenericFocus(stepInfo) {
+      clearGenericFocus();
+      if (!stepInfo) return;
+
+      const raw = `${stepInfo.label || ""} ${stepInfo.description || ""}`;
+      const compact = raw.replace(/\s+/g, "");
+      const triangleRefs = [...new Set((raw.match(/△([A-Z]{3})/g) || []).map((item) => item.replace("△", "")))];
+      const segmentRefs = [...new Set((raw.match(/[A-Z]{2}/g) || []).filter((item) => item.length === 2))];
+      const pointRefs = [...new Set((raw.match(/[A-Z]/g) || []))];
+
+      const activeKeys = new Set();
+      currentGenericMeta.forEach((item) => {
+        const refs = Array.isArray(item.refs) ? item.refs : [];
+        const joined = refs.join("");
+        const pointHit = refs.some((ref) => pointRefs.includes(ref));
+        const segmentHit = segmentRefs.some((ref) => compact.includes(ref) && refs.every((letter) => ref.includes(letter)));
+        const triangleHit = triangleRefs.some((ref) => refs.length > 0 && refs.every((letter) => ref.includes(letter)));
+        const labelHit = item.label && compact.includes(String(item.label).replace(/\s+/g, ""));
+        if (pointHit || segmentHit || triangleHit || labelHit || (joined && compact.includes(joined))) {
+          activeKeys.add(item.key);
+        }
+      });
+
+      const nodes = [...genericDiagram.querySelectorAll(".generic-item")];
+      if (!activeKeys.size) return;
+
+      nodes.forEach((node) => {
+        const key = node.getAttribute("data-key");
+        if (!activeKeys.has(key)) {
+          node.classList.add("generic-dim");
+          return;
+        }
+        if (node.tagName === "circle") node.classList.add("generic-focus-fill");
+        else if (node.tagName === "text") node.classList.add("generic-focus-text");
+        else node.classList.add("generic-focus-stroke");
+      });
     }
 
     function renderAnalysisResult({ conditions, matches, signals, score, subtitleText, summaryText }) {
@@ -1562,12 +1698,13 @@
         drawAuxBtn.textContent = stepLabels[0] ? `1. ${stepLabels[0].label || "画辅助线"}` : "1. 画辅助线";
         moveAnglesBtn.textContent = stepLabels[1] ? `2. ${stepLabels[1].label || "继续操作"}` : "2. 继续操作";
         combineAnglesBtn.textContent = stepLabels[2] ? `3. ${stepLabels[2].label || "整理结论"}` : "3. 整理结论";
+        const currentStep = stepLabels[Math.min(Math.max(stage, 1) - 1, Math.max(stepLabels.length - 1, 0))];
+        applyGenericFocus(currentStep);
         if (stage === 0) {
           visualCopy.textContent = stepLabels[0] && stepLabels[0].description
             ? stepLabels[0].description
             : "先观察模型根据题意生成的基础图形。";
         } else {
-          const currentStep = stepLabels[Math.min(stage - 1, stepLabels.length - 1)];
           visualCopy.textContent = currentStep && currentStep.description
             ? currentStep.description
             : "按照题意在图上逐步补出辅助线并整理结论。";
