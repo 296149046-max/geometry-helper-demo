@@ -1107,6 +1107,12 @@
     let currentMatches = [];
     let currentVisualStage = 0;
 
+    const diagramTypeToStrategyId = {
+      parallel_broken_angle: "parallel-broken-angle",
+      parallel_above_angle: "parallel-above-angle",
+      rotation_height_area: "rotation-height-area"
+    };
+
     function normalize(text) {
       return text.replace(/\s+/g, "").toLowerCase();
     }
@@ -1185,6 +1191,81 @@
         strategiesEl.appendChild(card);
       });
       strategyCount.textContent = `${matches.length} 个策略`;
+    }
+
+    function renderAnalysisResult({ conditions, matches, signals, score, subtitleText, summaryText }) {
+      currentMatches = matches;
+      emptyState.classList.add("hidden");
+      resultBody.classList.remove("hidden");
+      subtitle.textContent = subtitleText;
+      scoreText.textContent = `${score}%`;
+      scoreBar.style.setProperty("--value", `${score}%`);
+
+      renderChips(conditionsEl, conditions, "");
+      renderChips(signalsEl, signals, "green");
+      renderStrategies(matches);
+      renderHint(1);
+      setVisualStage(0);
+
+      summaryEl.classList.toggle("warning", !matches.length);
+      summaryEl.textContent = summaryText;
+    }
+
+    function normalizeAIResult(payload) {
+      const strategyId = payload.strategyId && payload.strategyId !== "none"
+        ? payload.strategyId
+        : diagramTypeToStrategyId[payload.diagramType];
+      const fallbackStrategy = strategyId
+        ? strategies.find((strategy) => strategy.id === strategyId)
+        : null;
+
+      const aiMatch = {
+        id: strategyId || "ai-generic",
+        name: payload.strategyName || (fallbackStrategy ? fallbackStrategy.name : "AI 分析结果"),
+        direction: payload.auxiliaryLine || (fallbackStrategy ? fallbackStrategy.direction : "建议先根据题目条件寻找可连接、可作平行线或可作垂线的位置。"),
+        knowledge: Array.isArray(payload.knowledge) && payload.knowledge.length
+          ? payload.knowledge
+          : (fallbackStrategy ? fallbackStrategy.knowledge : ["几何题型识别"]),
+        signals: Array.isArray(payload.signals) ? payload.signals : [],
+        hint1: payload.hint1 || (fallbackStrategy ? fallbackStrategy.hint1 : "先整理已知条件，再判断题目需要证明哪类关系。"),
+        hint2: payload.hint2 || (fallbackStrategy ? fallbackStrategy.hint2 : "根据目标关系，尝试构造全等、相似、平行或垂直。"),
+        solution: Array.isArray(payload.solution) && payload.solution.length
+          ? payload.solution
+          : (fallbackStrategy ? fallbackStrategy.solution : ["先整理条件。", "再尝试构造辅助线。"]),
+        summary: payload.summary || (fallbackStrategy ? fallbackStrategy.summary : "先从条件和目标入手，寻找最自然的辅助线方向。")
+      };
+
+      return {
+        conditions: Array.isArray(payload.conditions) && payload.conditions.length ? payload.conditions : [],
+        matches: [aiMatch],
+        signals: aiMatch.signals,
+        score: fallbackStrategy ? 92 : 84,
+        subtitleText: "已通过模型生成辅助线分析。",
+        summaryText: aiMatch.summary
+      };
+    }
+
+    function stripCodeFence(text) {
+      return text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    }
+
+    async function fetchAIAnalysis(problem) {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ problem })
+      });
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}));
+        throw new Error(errorPayload.error || "AI analysis request failed");
+      }
+
+      const data = await response.json();
+      const parsed = JSON.parse(stripCodeFence(data.result || ""));
+      return normalizeAIResult(parsed);
     }
 
     function renderHint(level) {
@@ -1321,13 +1402,7 @@
       return null;
     }
 
-    function analyze() {
-      const text = input.value.trim();
-      if (!text) {
-        input.focus();
-        return;
-      }
-
+    function runLocalAnalysis(text) {
       const scored = strategies
         .map((strategy) => ({ ...strategy, score: scoreStrategy(text, strategy) }))
         .filter((strategy) => strategy.score > 0)
@@ -1337,29 +1412,46 @@
       const fallback = fallbackStrategy(text);
       if (!matches.length && fallback) matches = [fallback];
 
-      currentMatches = matches;
       const conditions = extractConditions(text);
       const signals = [...new Set(matches.flatMap((match) => match.signals))].slice(0, 8);
       const score = Math.min(96, Math.max(35, matches.reduce((sum, item) => sum + item.score, 0) * 7));
 
-      emptyState.classList.add("hidden");
-      resultBody.classList.remove("hidden");
-      subtitle.textContent = matches.length
-        ? "已匹配到可尝试的辅助线方向。"
-        : "暂未匹配到明确策略，可以补充更多题目信息。";
-      scoreText.textContent = matches.length ? `${score}%` : "20%";
-      scoreBar.style.setProperty("--value", matches.length ? `${score}%` : "20%");
+      return {
+        conditions,
+        matches,
+        signals,
+        score: matches.length ? score : 20,
+        subtitleText: matches.length
+          ? "已匹配到可尝试的辅助线方向。"
+          : "暂未匹配到明确策略，可以补充更多题目信息。",
+        summaryText: matches.length
+          ? matches.map((match) => match.summary).join(" ")
+          : "这道题的信息还不够结构化。建议在题干中明确写出已知条件、图形对象和求证目标。"
+      };
+    }
 
-      renderChips(conditionsEl, conditions, "");
-      renderChips(signalsEl, signals, "green");
-      renderStrategies(matches);
-      renderHint(1);
-      setVisualStage(0);
+    async function analyze() {
+      const text = input.value.trim();
+      if (!text) {
+        input.focus();
+        return;
+      }
 
-      summaryEl.classList.toggle("warning", !matches.length);
-      summaryEl.textContent = matches.length
-        ? matches.map((match) => match.summary).join(" ")
-        : "这道题的信息还不够结构化。建议在题干中明确写出已知条件、图形对象和求证目标。";
+      analyzeBtn.disabled = true;
+      analyzeBtn.textContent = "分析中...";
+      subtitle.textContent = "正在尝试调用模型分析题目...";
+
+      try {
+        const aiResult = await fetchAIAnalysis(text);
+        renderAnalysisResult(aiResult);
+      } catch (error) {
+        const localResult = runLocalAnalysis(text);
+        localResult.subtitleText = "模型暂时不可用，已切换到本地规则分析。";
+        renderAnalysisResult(localResult);
+      } finally {
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = "分析辅助线方向";
+      }
     }
 
     document.querySelectorAll(".example-btn").forEach((button) => {
