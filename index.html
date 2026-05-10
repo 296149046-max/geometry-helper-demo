@@ -1,0 +1,1393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>几何辅助线提示助手</title>
+  <style>
+    :root {
+      --ink: #17202a;
+      --muted: #687382;
+      --line: #d8dee8;
+      --paper: #fbfcf8;
+      --panel: #ffffff;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --green: #147c58;
+      --green-soft: #e8f6ef;
+      --gold: #9a650d;
+      --gold-soft: #fff4d6;
+      --red: #b43b3b;
+      --shadow: 0 16px 42px rgba(31, 42, 55, 0.10);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(120deg, rgba(37, 99, 235, 0.08), transparent 34%),
+        linear-gradient(240deg, rgba(20, 124, 88, 0.08), transparent 38%),
+        var(--paper);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 40px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 8px 0 22px;
+      border-bottom: 1px solid rgba(104, 115, 130, 0.18);
+    }
+
+    .brand h1 {
+      margin: 0 0 8px;
+      font-size: clamp(26px, 3vw, 42px);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .brand p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+      max-width: 620px;
+    }
+
+    .status-pill {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      padding: 7px 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(20, 124, 88, 0.12);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.35fr);
+      gap: 18px;
+      padding-top: 22px;
+      align-items: start;
+    }
+
+    .section {
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(216, 222, 232, 0.9);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .input-panel {
+      padding: 18px;
+      position: sticky;
+      top: 18px;
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    h2,
+    h3 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 18px;
+    }
+
+    h3 {
+      font-size: 15px;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      resize: vertical;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      background: #fff;
+      line-height: 1.7;
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    textarea:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .primary,
+    .secondary,
+    .ghost {
+      min-height: 42px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .primary {
+      color: #fff;
+      background: var(--blue);
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+      font-weight: 700;
+    }
+
+    .primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 13px 28px rgba(37, 99, 235, 0.26);
+    }
+
+    .secondary,
+    .ghost {
+      color: var(--ink);
+      background: #fff;
+      border-color: var(--line);
+    }
+
+    .secondary:hover,
+    .ghost:hover {
+      background: #f5f8fc;
+    }
+
+    .ghost:disabled {
+      cursor: not-allowed;
+      color: #9aa4b2;
+      background: #f2f4f7;
+      border-color: #e1e6ee;
+    }
+
+    .examples {
+      margin-top: 18px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .example-btn {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--ink);
+      cursor: pointer;
+      line-height: 1.55;
+    }
+
+    .example-btn:hover {
+      border-color: #9db7e8;
+      background: var(--blue-soft);
+    }
+
+    .result-panel {
+      min-height: 640px;
+      overflow: hidden;
+    }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .confidence {
+      width: 176px;
+      flex: 0 0 auto;
+    }
+
+    .meter {
+      height: 8px;
+      margin-top: 8px;
+      border-radius: 999px;
+      background: #e8edf5;
+      overflow: hidden;
+    }
+
+    .meter span {
+      display: block;
+      height: 100%;
+      width: var(--value, 0%);
+      background: linear-gradient(90deg, var(--green), var(--blue));
+      border-radius: inherit;
+    }
+
+    .empty {
+      min-height: 500px;
+      display: grid;
+      place-items: center;
+      padding: 30px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .empty-mark {
+      width: 86px;
+      height: 86px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(37, 99, 235, 0.22);
+      display: grid;
+      place-items: center;
+      color: var(--blue);
+      font-size: 36px;
+      background: var(--blue-soft);
+    }
+
+    .result-body {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .band {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .band-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 44px;
+      padding: 10px 13px;
+      border-bottom: 1px solid var(--line);
+      background: #f7f9fc;
+    }
+
+    .band-body {
+      padding: 13px;
+    }
+
+    .chips,
+    .cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid #c9d7f4;
+      background: var(--blue-soft);
+      color: #1b4fb0;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .chip.green {
+      border-color: #bee3d3;
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .chip.gold {
+      border-color: #f0d28b;
+      background: var(--gold-soft);
+      color: var(--gold);
+    }
+
+    .strategy-card {
+      flex: 1 1 240px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .strategy-card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+
+    .strategy-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    .hint-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .hint-box {
+      border: 1px solid #f0d28b;
+      background: #fffaf0;
+      border-radius: 8px;
+      padding: 13px;
+      color: #4c3511;
+      line-height: 1.75;
+      min-height: 72px;
+    }
+
+    .visual-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.75fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .diagram-wrap {
+      min-height: 310px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, #ffffff, #f8fbff);
+      overflow: hidden;
+    }
+
+    .diagram {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-height: 310px;
+    }
+
+    .base-line {
+      stroke: #263445;
+      stroke-width: 3;
+      stroke-linecap: round;
+    }
+
+    .work-line {
+      stroke: var(--blue);
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-dasharray: 8 8;
+    }
+
+    .fold-line {
+      stroke: #111827;
+      stroke-width: 4;
+      stroke-linecap: round;
+      fill: none;
+    }
+
+    .angle-arc {
+      fill: none;
+      stroke-width: 4;
+      stroke-linecap: round;
+    }
+
+    .arc-known {
+      stroke: var(--gold);
+    }
+
+    .arc-turn {
+      stroke: var(--green);
+    }
+
+    .arc-answer {
+      stroke: var(--blue);
+    }
+
+    .point-label,
+    .angle-label,
+    .line-label {
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .point-label {
+      fill: #17202a;
+      font-size: 16px;
+    }
+
+    .line-label {
+      fill: #4a5565;
+      font-size: 14px;
+    }
+
+    .angle-label {
+      font-size: 15px;
+    }
+
+    .gold-text {
+      fill: var(--gold);
+    }
+
+    .green-text {
+      fill: var(--green);
+    }
+
+    .blue-text {
+      fill: var(--blue);
+    }
+
+    .ghosted {
+      opacity: 0.16;
+    }
+
+    .stage-item {
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.24s ease, transform 0.24s ease;
+    }
+
+    .show-stage-1 .stage-1,
+    .show-stage-2 .stage-1,
+    .show-stage-2 .stage-2,
+    .show-stage-3 .stage-1,
+    .show-stage-3 .stage-2,
+    .show-stage-3 .stage-3 {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .visual-steps {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .visual-copy {
+      min-height: 94px;
+      padding: 11px;
+      border-radius: 8px;
+      background: var(--blue-soft);
+      color: #1f376b;
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    .step-buttons {
+      display: grid;
+      gap: 8px;
+    }
+
+    .steps {
+      margin: 0;
+      padding-left: 20px;
+      line-height: 1.75;
+    }
+
+    .steps li {
+      margin: 4px 0;
+    }
+
+    .notice {
+      border-left: 4px solid var(--green);
+      background: var(--green-soft);
+      padding: 12px 13px;
+      border-radius: 0 8px 8px 0;
+      line-height: 1.7;
+    }
+
+    .warning {
+      border-left-color: var(--red);
+      background: #fff0f0;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 880px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .input-panel {
+        position: static;
+      }
+
+      .result-header {
+        flex-direction: column;
+      }
+
+      .confidence {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        width: min(100% - 20px, 1180px);
+        padding-top: 16px;
+      }
+
+      .actions,
+      .hint-controls,
+      .visual-panel {
+        grid-template-columns: 1fr;
+      }
+
+      textarea {
+        min-height: 180px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <h1>几何辅助线提示助手</h1>
+        <p>输入一道几何题，先识别题目信号，再给出辅助线方向。它会分层提示，尽量保留学生自己想出来的空间。</p>
+      </div>
+      <div class="status-pill" title="当前版本为本地规则原型，暂未接入大模型">
+        <span class="dot"></span>
+        本地原型 V1
+      </div>
+    </header>
+
+    <section class="workspace">
+      <aside class="section input-panel">
+        <div class="panel-title">
+          <h2>题目输入</h2>
+          <span class="small">文字题干优先</span>
+        </div>
+        <textarea id="problemInput" placeholder="例如：如图，在 △ABC 中，AB = AC，D 是 BC 的中点，求证 AD ⟂ BC。"></textarea>
+        <div class="actions">
+          <button class="primary" id="analyzeBtn">分析辅助线方向</button>
+          <button class="secondary" id="clearBtn" title="清空输入和结果">清空</button>
+        </div>
+
+        <div class="examples">
+          <h3>示例题</h3>
+          <button class="example-btn" data-example="如图，在 △ABC 中，AB = AC，D 是 BC 的中点，求证 AD ⟂ BC。">等腰三角形 + 中点</button>
+          <button class="example-btn" data-example="如图，AD 是 △ABC 的中线，D 是 BC 的中点，求证两条线段相等。">中线 + 倍长中线</button>
+          <button class="example-btn" data-example="如图，PA 是圆 O 的切线，A 为切点，求证 OA ⟂ PA。">圆 + 切线</button>
+          <button class="example-btn" data-example="如图，AB 是圆 O 的直径，C 是圆上一点，求证 ∠ACB = 90°。">圆 + 直径</button>
+          <button class="example-btn" data-example="如图，在 △ABC 中，D、E 分别是 AB、AC 的中点，求证 DE ∥ BC 且 DE = BC 的一半。">两个中点 + 中位线</button>
+          <button class="example-btn" data-example="若 AB // CD，∠BEP = 25°，∠PFC = 150°，求 ∠EPF 的度数。">平行线 + 折线求角</button>
+          <button class="example-btn" data-example="AB // CD，点 P 在 AB 的上方，问 ∠PEA，∠PFC，∠EPF 之间有何数量关系？">P 在平行线上方</button>
+          <button class="example-btn" data-example="在 Rt△ABC 中，∠ACB = 90°，BC = a。将边 AB 绕点 B 顺时针旋转 90° 得到线段 BD，连接 CD。过点 D 作 △BCD 的 BC 边上的高 DE，说明 △BCD 的面积为 1/2a²。">旋转作高求面积</button>
+        </div>
+      </aside>
+
+      <section class="section result-panel" aria-live="polite">
+        <div class="result-header">
+          <div>
+            <h2>分析结果</h2>
+            <div class="small" id="subtitle">先输入题目，系统会按策略库给出教学型提示。</div>
+          </div>
+          <div class="confidence">
+            <div class="small">匹配把握度：<strong id="scoreText">0%</strong></div>
+            <div class="meter" aria-hidden="true"><span id="scoreBar"></span></div>
+          </div>
+        </div>
+
+        <div class="empty" id="emptyState">
+          <div>
+            <div class="empty-mark">∠</div>
+            <h2>等待一道几何题</h2>
+            <p class="small">建议先用“中点、等腰、圆、切线、直径、比例、面积”这类典型题测试。</p>
+          </div>
+        </div>
+
+        <div class="result-body hidden" id="resultBody">
+          <div class="band">
+            <div class="band-head">
+              <h3>我读到的条件</h3>
+              <span class="small">从题干提取</span>
+            </div>
+            <div class="band-body">
+              <div class="chips" id="conditions"></div>
+            </div>
+          </div>
+
+          <div class="band">
+            <div class="band-head">
+              <h3>题目信号</h3>
+              <span class="small">用于匹配辅助线</span>
+            </div>
+            <div class="band-body">
+              <div class="chips" id="signals"></div>
+            </div>
+          </div>
+
+          <div class="band">
+            <div class="band-head">
+              <h3>推荐辅助线方向</h3>
+              <span class="small" id="strategyCount">0 个策略</span>
+            </div>
+            <div class="band-body">
+              <div class="cards" id="strategies"></div>
+            </div>
+          </div>
+
+          <div class="band">
+            <div class="band-head">
+              <h3>图上怎么操作</h3>
+              <span class="small" id="visualStatus">动态演示</span>
+            </div>
+            <div class="band-body">
+              <div class="visual-panel" id="visualPanel">
+                <div class="diagram-wrap">
+                  <svg class="diagram" id="parallelDiagram" viewBox="0 0 640 340" role="img" aria-label="平行线折线求角动态图">
+                    <line class="base-line" x1="58" y1="82" x2="582" y2="82"></line>
+                    <line class="base-line" x1="58" y1="258" x2="582" y2="258"></line>
+                    <text class="line-label" x="68" y="62">AB</text>
+                    <text class="line-label" x="68" y="286">CD</text>
+                    <text class="line-label" x="512" y="62">AB ∥ CD</text>
+
+                    <polyline class="fold-line" points="206,82 320,170 442,258"></polyline>
+                    <circle cx="206" cy="82" r="5" fill="#111827"></circle>
+                    <circle cx="320" cy="170" r="6" fill="#111827"></circle>
+                    <circle cx="442" cy="258" r="5" fill="#111827"></circle>
+                    <text class="point-label" x="190" y="71">E</text>
+                    <text class="point-label" x="326" y="168">P</text>
+                    <text class="point-label" x="448" y="276">F</text>
+
+                    <path class="angle-arc arc-known" d="M 230 82 A 28 28 0 0 1 228 99"></path>
+                    <text class="angle-label gold-text" x="236" y="105">25°</text>
+                    <path class="angle-arc arc-known" d="M 418 258 A 34 34 0 0 0 407 232"></path>
+                    <text class="angle-label gold-text" x="386" y="237">150°</text>
+
+                    <g class="stage-item stage-1">
+                      <line class="work-line" x1="120" y1="170" x2="520" y2="170"></line>
+                      <text class="angle-label blue-text" x="420" y="158">过 P 作 l ∥ AB ∥ CD</text>
+                    </g>
+
+                    <g class="stage-item stage-2">
+                      <path class="angle-arc arc-turn" d="M 286 170 A 34 34 0 0 1 293 150"></path>
+                      <text class="angle-label green-text" x="248" y="151">25°</text>
+                      <path class="angle-arc arc-turn" d="M 346 170 A 35 35 0 0 0 352 150"></path>
+                      <text class="angle-label green-text" x="352" y="151">30°</text>
+                      <text class="angle-label green-text" x="384" y="205">180° - 150° = 30°</text>
+                    </g>
+
+                    <g class="stage-item stage-3">
+                      <path class="angle-arc arc-answer" d="M 286 145 A 44 44 0 0 0 358 145"></path>
+                      <text class="angle-label blue-text" x="277" y="121">∠EPF = 25° + 30° = 55°</text>
+                    </g>
+                  </svg>
+                  <svg class="diagram hidden" id="aboveParallelDiagram" viewBox="0 0 640 340" role="img" aria-label="点 P 在平行线上方角关系动态图">
+                    <line class="base-line" x1="58" y1="154" x2="582" y2="154"></line>
+                    <line class="base-line" x1="58" y1="270" x2="582" y2="270"></line>
+                    <text class="line-label" x="76" y="135">A</text>
+                    <text class="line-label" x="250" y="135">E</text>
+                    <text class="line-label" x="516" y="135">B</text>
+                    <text class="line-label" x="76" y="298">C</text>
+                    <text class="line-label" x="418" y="298">F</text>
+                    <text class="line-label" x="530" y="298">D</text>
+                    <text class="line-label" x="484" y="184">AB ∥ CD</text>
+
+                    <polyline class="fold-line" points="260,154 344,62 430,270"></polyline>
+                    <circle cx="260" cy="154" r="5" fill="#111827"></circle>
+                    <circle cx="344" cy="62" r="6" fill="#111827"></circle>
+                    <circle cx="430" cy="270" r="5" fill="#111827"></circle>
+                    <text class="point-label" x="264" y="174">E</text>
+                    <text class="point-label" x="350" y="56">P</text>
+                    <text class="point-label" x="436" y="264">F</text>
+
+                    <path class="angle-arc arc-known" d="M 226 154 A 34 34 0 0 1 237 129"></path>
+                    <text class="angle-label gold-text" x="191" y="132">∠PEA</text>
+                    <path class="angle-arc arc-known" d="M 396 270 A 34 34 0 0 1 417 239"></path>
+                    <text class="angle-label gold-text" x="346" y="250">∠PFC</text>
+                    <path class="angle-arc arc-known" d="M 323 85 A 36 36 0 0 0 358 92"></path>
+                    <text class="angle-label gold-text" x="356" y="106">∠EPF</text>
+
+                    <g class="stage-item stage-1">
+                      <line class="work-line" x1="132" y1="62" x2="548" y2="62"></line>
+                      <text class="angle-label blue-text" x="390" y="47">过 P 作 l ∥ AB ∥ CD</text>
+                    </g>
+
+                    <g class="stage-item stage-2">
+                      <path class="angle-arc arc-turn" d="M 310 62 A 34 34 0 0 1 321 39"></path>
+                      <text class="angle-label green-text" x="255" y="40">∠PEA 的补角</text>
+                      <path class="angle-arc arc-turn" d="M 378 62 A 38 38 0 0 0 360 92"></path>
+                      <text class="angle-label green-text" x="386" y="92">与 ∠PFC 对应</text>
+                    </g>
+
+                    <g class="stage-item stage-3">
+                      <text class="angle-label blue-text" x="178" y="220">∠PEA = ∠PFC + ∠EPF</text>
+                      <text class="angle-label blue-text" x="178" y="246">即：∠EPF = ∠PEA - ∠PFC</text>
+                    </g>
+                  </svg>
+                  <svg class="diagram hidden" id="rotationAreaDiagram" viewBox="0 0 640 340" role="img" aria-label="直角三角形旋转作高求面积动态图">
+                    <line class="base-line" x1="58" y1="250" x2="550" y2="250"></line>
+                    <polyline class="fold-line" points="170,250 420,110 420,250 170,250"></polyline>
+                    <line class="fold-line" x1="170" y1="250" x2="30" y2="0"></line>
+
+                    <circle cx="170" cy="250" r="5" fill="#111827"></circle>
+                    <circle cx="420" cy="250" r="5" fill="#111827"></circle>
+                    <circle cx="420" cy="110" r="5" fill="#111827"></circle>
+                    <circle cx="30" cy="0" r="5" fill="#111827"></circle>
+                    <text class="point-label" x="150" y="274">B</text>
+                    <text class="point-label" x="424" y="274">C</text>
+                    <text class="point-label" x="428" y="111">A</text>
+                    <text class="point-label" x="36" y="22">D</text>
+                    <text class="line-label" x="286" y="274">BC = a</text>
+                    <text class="line-label" x="70" y="64">AB 顺时针旋转 90° 得到 BD</text>
+
+                    <path class="angle-arc arc-known" d="M 394 250 L 394 224 L 420 224"></path>
+                    <text class="angle-label gold-text" x="432" y="226">90°</text>
+                    <path class="angle-arc arc-known" d="M 196 250 A 34 34 0 0 0 188 219"></path>
+                    <text class="angle-label gold-text" x="205" y="218">90°</text>
+
+                    <g class="stage-item stage-1">
+                      <line class="work-line" x1="30" y1="0" x2="420" y2="250"></line>
+                      <text class="angle-label blue-text" x="256" y="143">连接 CD</text>
+                    </g>
+
+                    <g class="stage-item stage-2">
+                      <line class="work-line" x1="30" y1="0" x2="30" y2="250"></line>
+                      <circle cx="30" cy="250" r="5" fill="#2563eb"></circle>
+                      <text class="point-label blue-text" x="34" y="274">E</text>
+                      <path class="angle-arc arc-turn" d="M 30 224 L 56 224 L 56 250"></path>
+                      <text class="angle-label green-text" x="46" y="132">DE ⟂ BC</text>
+                      <text class="angle-label green-text" x="50" y="171">DE = BC = a</text>
+                    </g>
+
+                    <g class="stage-item stage-3">
+                      <text class="angle-label blue-text" x="198" y="48">S△BCD = 1/2 × BC × DE</text>
+                      <text class="angle-label blue-text" x="198" y="76">= 1/2 × a × a = 1/2a²</text>
+                    </g>
+                  </svg>
+                </div>
+                <div class="visual-steps">
+                  <h3>操作步骤</h3>
+                  <div class="visual-copy" id="visualCopy">命中可视化题型后，这里会显示每一步该在图上做什么。</div>
+                  <div class="step-buttons">
+                    <button class="ghost" id="drawAuxBtn">1. 画辅助线</button>
+                    <button class="ghost" id="moveAnglesBtn">2. 搬角度</button>
+                    <button class="ghost" id="combineAnglesBtn">3. 合成答案</button>
+                    <button class="ghost" id="resetVisualBtn">重新演示</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="band">
+            <div class="band-head">
+              <h3>分层提示</h3>
+              <span class="small">逐步展开</span>
+            </div>
+            <div class="band-body">
+              <div class="hint-controls">
+                <button class="ghost" id="hintOneBtn">提示一下</button>
+                <button class="ghost" id="hintTwoBtn">再具体一点</button>
+                <button class="ghost" id="solutionBtn">查看完整思路</button>
+              </div>
+              <div class="hint-box" id="hintBox">先看推荐的辅助线方向，再选择需要的提示层级。</div>
+            </div>
+          </div>
+
+          <div class="band">
+            <div class="band-head">
+              <h3>这类题以后怎么想</h3>
+              <span class="small">方法迁移</span>
+            </div>
+            <div class="band-body">
+              <div class="notice" id="summary"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const strategies = [
+      {
+        id: "isosceles-midpoint",
+        name: "等腰三角形三线合一",
+        keywords: ["等腰", "AB=AC", "AB = AC", "中点", "垂直", "角平分"],
+        signals: ["出现等腰三角形", "出现底边中点", "目标可能是证明垂直或角相等"],
+        knowledge: ["等腰三角形三线合一", "全等三角形"],
+        direction: "连接等腰三角形顶点和底边中点。",
+        hint1: "观察等腰三角形和底边中点之间的关系。",
+        hint2: "可以尝试连接顶点和底边中点，构造两个三角形。",
+        solution: [
+          "连接顶点和底边中点。",
+          "利用两腰相等、底边被中点平分、公共边相等，证明两个小三角形全等。",
+          "由全等得到底边处两个角相等，再结合它们互补，可推出都是 90°。"
+        ],
+        summary: "看到“等腰三角形 + 底边中点”，优先想到连接顶点与中点，尝试使用三线合一或全等。"
+      },
+      {
+        id: "midline",
+        name: "中点与中位线",
+        keywords: ["两个中点", "分别是", "中点", "平行", "一半", "1/2", "∥"],
+        signals: ["出现两个中点", "目标可能是证明平行", "目标可能是证明一半关系"],
+        knowledge: ["三角形中位线"],
+        direction: "连接两个中点，构造三角形中位线。",
+        hint1: "题目中有两个中点，可以考虑它们之间的连线。",
+        hint2: "连接两个中点后，看看是否能得到一条与第三边平行的线段。",
+        solution: [
+          "连接两个中点。",
+          "根据三角形中位线定理，这条线段平行于第三边。",
+          "同时它的长度等于第三边的一半。"
+        ],
+        summary: "看到“两个中点”，优先想到连接中点，使用中位线得到平行和一半关系。"
+      },
+      {
+        id: "double-median",
+        name: "倍长中线",
+        keywords: ["中线", "中点", "相等", "角相等", "全等"],
+        signals: ["出现三角形中线", "出现边的中点", "目标可能是证明相等"],
+        knowledge: ["倍长中线", "全等三角形"],
+        direction: "延长中线，使延长部分等于原中线。",
+        hint1: "题目给了中点，可能需要把半个图形补成完整图形。",
+        hint2: "可以把中线延长一倍，尝试构造一对全等三角形。",
+        solution: [
+          "延长中线到一点，使延长部分等于原来的中线。",
+          "利用中点带来的两段相等，以及对顶角或公共角，构造全等三角形。",
+          "再把全等得到的线段或角关系转回原题。"
+        ],
+        summary: "看到“中线 + 证明相等”，可以考虑倍长中线，把隐藏关系转化为全等。"
+      },
+      {
+        id: "angle-bisector",
+        name: "角平分线作垂线",
+        keywords: ["角平分线", "平分", "距离", "垂线", "相等"],
+        signals: ["出现角平分线", "目标可能与距离相等有关"],
+        knowledge: ["角平分线性质", "直角三角形全等"],
+        direction: "从角平分线上的点向角的两边作垂线。",
+        hint1: "角平分线上的点到角两边有什么关系？",
+        hint2: "可以从角平分线上的点分别向角的两边作垂线。",
+        solution: [
+          "从角平分线上的点向角的两边分别作垂线。",
+          "得到两个直角三角形。",
+          "利用角平分线性质或直角三角形全等，证明距离或线段相等。"
+        ],
+        summary: "看到“角平分线 + 距离/垂直/相等”，优先想到向两边作垂线。"
+      },
+      {
+        id: "congruence",
+        name: "证明线段相等，构造全等",
+        keywords: ["求证", "证明", "相等", "=", "公共边", "公共角", "全等"],
+        signals: ["目标是证明线段相等", "可能存在公共边或公共角"],
+        knowledge: ["全等三角形"],
+        direction: "连接相关点，构造两个三角形，再寻找全等条件。",
+        hint1: "要证明线段相等，可以先想：它们能不能放进两个三角形里？",
+        hint2: "尝试连接相关点，看看是否能得到两个有公共边或公共角的三角形。",
+        solution: [
+          "把要证明相等的两条线段分别放到两个三角形中。",
+          "寻找边边边、边角边、角边角等全等条件。",
+          "证明三角形全等后，得到对应边相等。"
+        ],
+        summary: "看到“证明线段相等”，优先想构造全等三角形，而不是只盯着线段本身。"
+      },
+      {
+        id: "similar-parallel",
+        name: "比例关系作平行线",
+        keywords: ["比例", "比", "相似", "平行", "∥", "成比例"],
+        signals: ["目标是证明比例关系", "可能需要构造相似三角形"],
+        knowledge: ["相似三角形", "平行线性质"],
+        direction: "作平行线，构造相似三角形。",
+        hint1: "比例关系常常来自相似三角形。",
+        hint2: "可以尝试过某个点作一条平行线，制造对应角相等。",
+        solution: [
+          "根据题目中的线段比例，寻找可能相似的两个三角形。",
+          "如果角关系不够明显，可以作一条平行线制造同位角或内错角相等。",
+          "证明相似后，使用对应边成比例。"
+        ],
+        summary: "看到“比例”，先想相似；想构造相似，常用作平行线。"
+      },
+      {
+        id: "parallel-broken-angle",
+        name: "过折点作平行线",
+        keywords: ["平行", "//", "∥", "AB//CD", "AB // CD", "折线", "求∠", "度数", "BEP", "PFC", "EPF"],
+        signals: ["出现两条平行线", "出现折线 E-P-F", "目标是求折点角"],
+        knowledge: ["平行线性质", "邻补角", "角度转化"],
+        direction: "过折点 P 作一条直线，使它平行于已知的两条平行线。",
+        hint1: "上下两条线平行，中间要求折点角，可以先把角都转移到点 P 附近。",
+        hint2: "过 P 作 AB、CD 的平行线；150° 这一侧通常要先转成补角 30°。",
+        solution: [
+          "过点 P 作直线 l，使 l ∥ AB ∥ CD。",
+          "由 AB ∥ l，可把 ∠BEP = 25° 转化为 EP 与 l 的夹角。",
+          "由 CD ∥ l，且 ∠PFC = 150°，可得 PF 与 l 的锐角为 180° - 150° = 30°。",
+          "所以 ∠EPF = 25° + 30° = 55°。"
+        ],
+        summary: "看到“平行线 + 中间折线 + 求折点角”，优先想到过折点作平行线，把两端的角搬到同一个点附近。"
+      },
+      {
+        id: "parallel-above-angle",
+        name: "点在平行线上方的折线角关系",
+        keywords: ["AB//CD", "AB // CD", "AB∥CD", "平行", "//", "∥", "上方", "数量关系", "PEA", "PFC", "EPF"],
+        signals: ["出现两条平行线", "点 P 在 AB 上方", "目标是总结三个角的数量关系"],
+        knowledge: ["平行线性质", "邻补角", "外角转化"],
+        direction: "过点 P 作一条直线，使它平行于 AB、CD，再把 ∠PEA 和 ∠PFC 转移到 P 附近。",
+        hint1: "这类题不要急着算数，先过 P 作一条和 AB、CD 平行的线。",
+        hint2: "过 P 作平行线后，∠PEA 会被拆成两部分：一部分对应 ∠PFC，另一部分就是 ∠EPF。",
+        solution: [
+          "过点 P 作直线 l，使 l ∥ AB ∥ CD。",
+          "利用平行线性质，把 E、F 两处的角转移到 P 附近。",
+          "因为 P 在 AB 的上方，∠PEA 可以看成由 ∠PFC 和 ∠EPF 两部分组成。",
+          "整理可得：∠PEA = ∠PFC + ∠EPF。",
+          "等价写法是：∠EPF = ∠PEA - ∠PFC。"
+        ],
+        summary: "看到“AB ∥ CD，点 P 在 AB 上方，问三个角关系”，优先想到过 P 作平行线；在当前图形位置下，结论是 ∠PEA = ∠PFC + ∠EPF。"
+      },
+      {
+        id: "diameter-right-angle",
+        name: "圆中直径构造直角",
+        keywords: ["圆", "直径", "圆上", "90", "直角", "垂直"],
+        signals: ["出现圆", "出现直径", "出现圆上一点"],
+        knowledge: ["圆周角定理"],
+        direction: "连接圆上一点与直径两端。",
+        hint1: "圆中出现直径时，要想到直径所对的圆周角。",
+        hint2: "把圆上一点分别连接到直径的两个端点。",
+        solution: [
+          "连接圆上一点与直径的两个端点。",
+          "根据直径所对的圆周角是直角，可得到一个直角三角形。",
+          "再利用这个直角推进垂直、相似或角度关系。"
+        ],
+        summary: "看到“圆 + 直径 + 圆上一点”，优先想到连接直径两端与圆上一点。"
+      },
+      {
+        id: "tangent-radius",
+        name: "切线连接圆心",
+        keywords: ["切线", "切点", "圆心", "半径", "垂直", "圆 O", "圆O"],
+        signals: ["出现切线", "出现切点", "目标可能是证明垂直或角关系"],
+        knowledge: ["切线性质", "直角三角形"],
+        direction: "连接圆心和切点。",
+        hint1: "切线和过切点的半径之间有什么基本关系？",
+        hint2: "连接圆心和切点，可以得到一个直角。",
+        solution: [
+          "连接圆心和切点。",
+          "根据切线性质，过切点的半径垂直于切线。",
+          "由此得到直角，再进入角度、全等或相似的推理。"
+        ],
+        summary: "看到“切线 + 切点”，第一反应是连接圆心和切点。"
+      },
+      {
+        id: "chord-midpoint",
+        name: "弦中点连接圆心",
+        keywords: ["弦", "中点", "圆心", "垂径", "平分"],
+        signals: ["出现圆", "出现弦的中点"],
+        knowledge: ["垂径定理"],
+        direction: "连接圆心和弦的中点。",
+        hint1: "圆心和弦中点之间可能有特殊关系。",
+        hint2: "连接圆心和弦中点，看看是否能得到垂直。",
+        solution: [
+          "连接圆心和弦的中点。",
+          "利用垂径定理或其逆向思路，得到垂直或平分关系。",
+          "再将这个垂直关系用于证明角、线段或相似。"
+        ],
+        summary: "看到“圆 + 弦中点”，优先想到连接圆心和弦中点。"
+      },
+      {
+        id: "area-height",
+        name: "面积关系作高或连线分割",
+        keywords: ["面积", "同底", "等底", "同高", "等高", "作高"],
+        signals: ["目标是证明面积关系", "可能存在同底等高"],
+        knowledge: ["三角形面积", "等底等高"],
+        direction: "作高，或连接顶点分割图形。",
+        hint1: "面积问题先看底和高。",
+        hint2: "可以作高，或者连接某个顶点，把大图形分成几个小三角形。",
+        solution: [
+          "先确定比较的是哪些三角形或图形的面积。",
+          "寻找它们是否同底、等底、同高或等高。",
+          "必要时作高或连接顶点分割图形，把面积关系转化为底和高的关系。"
+        ],
+        summary: "看到“面积关系”，优先找底和高，必要时作高或连线分割。"
+      },
+      {
+        id: "rotation-height-area",
+        name: "旋转 90° 后作高求面积",
+        keywords: ["Rt△", "直角三角形", "∠ACB", "90", "BC=a", "BC = a", "顺时针旋转", "旋转90", "旋转 90", "BD", "连接CD", "连接 CD", "高DE", "高 DE", "面积", "1/2a"],
+        signals: ["出现直角三角形", "出现绕点 B 旋转 90°", "目标是说明面积为 1/2a²"],
+        knowledge: ["旋转性质", "全等三角形", "三角形面积"],
+        direction: "连接 CD，并过 D 向 BC 所在直线作高 DE。",
+        hint1: "面积要找底和高。底已经有 BC = a，关键是说明高 DE 也等于 a。",
+        hint2: "利用旋转 90°：AB = BD，且 AB ⟂ BD；再结合 AC ⟂ BC，可证明 △ABC 与 △DBE 全等。",
+        solution: [
+          "连接 CD，过点 D 作 DE ⟂ BC，垂足为 E。",
+          "因为 AB 绕点 B 顺时针旋转 90° 得到 BD，所以 AB = BD，且 ∠ABD = 90°。",
+          "又因为 ∠ACB = 90°，所以 AC ⟂ BC；DE ⟂ BC，因此 AC ∥ DE。",
+          "由角度关系可得 △ABC 与 △DBE 全等，所以 DE = BC = a。",
+          "因此 S△BCD = 1/2 × BC × DE = 1/2 × a × a = 1/2a²。"
+        ],
+        summary: "看到“直角三角形 + 绕顶点旋转 90° + 求面积”，优先找底和高；常用旋转性质证明新三角形的高等于原来的已知边。"
+      }
+    ];
+
+    const input = document.querySelector("#problemInput");
+    const analyzeBtn = document.querySelector("#analyzeBtn");
+    const clearBtn = document.querySelector("#clearBtn");
+    const emptyState = document.querySelector("#emptyState");
+    const resultBody = document.querySelector("#resultBody");
+    const subtitle = document.querySelector("#subtitle");
+    const scoreText = document.querySelector("#scoreText");
+    const scoreBar = document.querySelector("#scoreBar");
+    const conditionsEl = document.querySelector("#conditions");
+    const signalsEl = document.querySelector("#signals");
+    const strategiesEl = document.querySelector("#strategies");
+    const strategyCount = document.querySelector("#strategyCount");
+    const hintBox = document.querySelector("#hintBox");
+    const summaryEl = document.querySelector("#summary");
+    const hintOneBtn = document.querySelector("#hintOneBtn");
+    const hintTwoBtn = document.querySelector("#hintTwoBtn");
+    const solutionBtn = document.querySelector("#solutionBtn");
+    const visualPanel = document.querySelector("#visualPanel");
+    const visualStatus = document.querySelector("#visualStatus");
+    const parallelDiagram = document.querySelector("#parallelDiagram");
+    const visualCopy = document.querySelector("#visualCopy");
+    const drawAuxBtn = document.querySelector("#drawAuxBtn");
+    const moveAnglesBtn = document.querySelector("#moveAnglesBtn");
+    const combineAnglesBtn = document.querySelector("#combineAnglesBtn");
+    const resetVisualBtn = document.querySelector("#resetVisualBtn");
+    const aboveParallelDiagram = document.querySelector("#aboveParallelDiagram");
+    const rotationAreaDiagram = document.querySelector("#rotationAreaDiagram");
+
+    let currentMatches = [];
+    let currentVisualStage = 0;
+
+    function normalize(text) {
+      return text.replace(/\s+/g, "").toLowerCase();
+    }
+
+    function keywordHit(text, keyword) {
+      const compact = normalize(text);
+      const key = normalize(keyword);
+      return compact.includes(key);
+    }
+
+    function scoreStrategy(text, strategy) {
+      let score = 0;
+      strategy.keywords.forEach((keyword) => {
+        if (keywordHit(text, keyword)) score += keyword.length >= 3 ? 2 : 1;
+      });
+
+      if (strategy.id === "midline" && /[、,，].*中点|分别是.*中点/.test(text)) score += 3;
+      if (strategy.id === "tangent-radius" && /切线|切点/.test(text)) score += 4;
+      if (strategy.id === "diameter-right-angle" && /直径/.test(text)) score += 4;
+      if (strategy.id === "parallel-broken-angle" && /(\/\/|∥|平行)/.test(text) && /∠.*P/.test(text)) score += 6;
+      if (strategy.id === "parallel-broken-angle" && /BEP|PFC|EPF/.test(text)) score += 5;
+      if (strategy.id === "parallel-above-angle" && /(\/\/|∥|平行)/.test(text) && /上方/.test(text)) score += 10;
+      if (strategy.id === "parallel-above-angle" && /PEA|PFC|EPF|数量关系/.test(text)) score += 6;
+      if (strategy.id === "rotation-height-area" && /旋转/.test(text) && /90/.test(text) && /面积/.test(text)) score += 12;
+      if (strategy.id === "rotation-height-area" && /ACB|BC\s*=\s*a|BC=a|BD|DE/.test(text)) score += 8;
+      if (strategy.id === "isosceles-midpoint" && /(AB\s*=\s*AC|等腰)/.test(text) && /中点/.test(text)) score += 4;
+      if (strategy.id === "area-height" && /面积/.test(text)) score += 4;
+
+      return score;
+    }
+
+    function extractConditions(text) {
+      const clean = text.replace(/\s+/g, " ").trim();
+      const parts = clean
+        .split(/[，。；;,.]/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+      const picked = [];
+      parts.forEach((part) => {
+        if (/中点|AB\s*=\s*AC|等腰|切线|切点|直径|圆|角平分线|面积|比例|平行|垂直|旋转|高|Rt|求证|证明|∥|⊥|=/.test(part)) {
+          picked.push(part);
+        }
+      });
+
+      if (!picked.length && clean) picked.push(clean);
+      return picked.slice(0, 7);
+    }
+
+    function makeChip(text, tone = "") {
+      const span = document.createElement("span");
+      span.className = ["chip", tone].filter(Boolean).join(" ");
+      span.textContent = text;
+      return span;
+    }
+
+    function renderChips(container, items, tone) {
+      container.innerHTML = "";
+      if (!items.length) {
+        container.appendChild(makeChip("暂未识别到明显信息", "gold"));
+        return;
+      }
+      items.forEach((item) => container.appendChild(makeChip(item, tone)));
+    }
+
+    function renderStrategies(matches) {
+      strategiesEl.innerHTML = "";
+      matches.forEach((match) => {
+        const card = document.createElement("article");
+        card.className = "strategy-card";
+        card.innerHTML = `
+          <strong>${match.name}</strong>
+          <p>${match.direction}</p>
+          <p style="margin-top:8px;">知识点：${match.knowledge.join("、")}</p>
+        `;
+        strategiesEl.appendChild(card);
+      });
+      strategyCount.textContent = `${matches.length} 个策略`;
+    }
+
+    function renderHint(level) {
+      if (!currentMatches.length) {
+        hintBox.textContent = "这道题暂时没有匹配到明确策略。可以补充图形关系，比如中点、平行、圆心、切点、直径等信息。";
+        return;
+      }
+
+      const main = currentMatches[0];
+      if (level === 1) {
+        hintBox.textContent = main.hint1;
+        return;
+      }
+
+      if (level === 2) {
+        hintBox.textContent = main.hint2;
+        return;
+      }
+
+      const list = document.createElement("ol");
+      list.className = "steps";
+      main.solution.forEach((step) => {
+        const li = document.createElement("li");
+        li.textContent = step;
+        list.appendChild(li);
+      });
+      hintBox.innerHTML = "";
+      hintBox.appendChild(list);
+    }
+
+    function hasParallelBrokenAngle() {
+      return currentMatches.some((match) => match.id === "parallel-broken-angle");
+    }
+
+    function hasParallelAboveAngle() {
+      return currentMatches.some((match) => match.id === "parallel-above-angle");
+    }
+
+    function hasRotationHeightArea() {
+      return currentMatches.some((match) => match.id === "rotation-height-area");
+    }
+
+    function setVisualStage(stage) {
+      currentVisualStage = stage;
+      parallelDiagram.classList.remove("show-stage-1", "show-stage-2", "show-stage-3", "ghosted");
+      aboveParallelDiagram.classList.remove("show-stage-1", "show-stage-2", "show-stage-3", "ghosted");
+      rotationAreaDiagram.classList.remove("show-stage-1", "show-stage-2", "show-stage-3", "ghosted");
+
+      const visualType = hasRotationHeightArea()
+        ? "rotation"
+        : hasParallelAboveAngle()
+        ? "above"
+        : hasParallelBrokenAngle()
+          ? "broken"
+          : "none";
+      const activeDiagram = visualType === "rotation"
+        ? rotationAreaDiagram
+        : visualType === "above"
+          ? aboveParallelDiagram
+          : parallelDiagram;
+      parallelDiagram.classList.toggle("hidden", visualType === "above" || visualType === "rotation");
+      aboveParallelDiagram.classList.toggle("hidden", visualType !== "above");
+      rotationAreaDiagram.classList.toggle("hidden", visualType !== "rotation");
+
+      if (visualType === "none") {
+        parallelDiagram.classList.add("ghosted");
+        aboveParallelDiagram.classList.add("ghosted");
+        rotationAreaDiagram.classList.add("ghosted");
+        visualStatus.textContent = "暂无专属图例";
+        visualCopy.textContent = "这类题的图上演示还没有配置。后续可以按题型继续补：等腰三角形、中位线、圆与切线等。";
+        [drawAuxBtn, moveAnglesBtn, combineAnglesBtn, resetVisualBtn].forEach((button) => {
+          button.disabled = true;
+        });
+        return;
+      }
+
+      [drawAuxBtn, moveAnglesBtn, combineAnglesBtn, resetVisualBtn].forEach((button) => {
+        button.disabled = false;
+      });
+      drawAuxBtn.textContent = visualType === "rotation" ? "1. 连接 CD" : "1. 画辅助线";
+      moveAnglesBtn.textContent = visualType === "rotation" ? "2. 作高 DE" : "2. 搬角度";
+      combineAnglesBtn.textContent = visualType === "rotation" ? "3. 说明面积" : "3. 合成答案";
+
+      visualStatus.textContent = visualType === "rotation"
+        ? "旋转作高求面积演示"
+        : visualType === "above"
+          ? "P 在平行线上方演示"
+          : "平行线折线演示";
+      if (stage >= 1) activeDiagram.classList.add("show-stage-1");
+      if (stage >= 2) activeDiagram.classList.add("show-stage-2");
+      if (stage >= 3) activeDiagram.classList.add("show-stage-3");
+
+      if (visualType === "rotation") {
+        if (stage === 0) {
+          visualCopy.textContent = "先看原图：△ABC 在 C 点是直角，BC = a；AB 绕 B 顺时针旋转 90° 后得到 BD。";
+        } else if (stage === 1) {
+          visualCopy.textContent = "第一步：连接 CD。因为要研究 △BCD 的面积，必须先把这个三角形补完整。";
+        } else if (stage === 2) {
+          visualCopy.textContent = "第二步：过 D 作 DE ⟂ BC。面积的底是 BC = a，关键转成证明高 DE = a。";
+        } else {
+          visualCopy.textContent = "第三步：由旋转得 AB = BD 且 AB ⟂ BD；结合 AC ⟂ BC、DE ⟂ BC，可证 △ABC ≌ △DBE，所以 DE = BC = a，面积为 1/2a²。";
+        }
+        return;
+      }
+
+      if (visualType === "above") {
+        if (stage === 0) {
+          visualCopy.textContent = "先看原图：P 在 AB 的上方，E 在 AB 上，F 在 CD 上。三个角分布在 E、P、F 三个位置。";
+        } else if (stage === 1) {
+          visualCopy.textContent = "第一步：过 P 作 l ∥ AB ∥ CD。这样就能把上下两条平行线上的角转到 P 附近比较。";
+        } else if (stage === 2) {
+          visualCopy.textContent = "第二步：把 ∠PEA、∠PFC 分别向 P 附近转移。注意 P 在 AB 上方，所以 ∠PEA 会和它旁边的小角形成补角。";
+        } else {
+          visualCopy.textContent = "第三步：整理角度关系，∠PEA 被分成 ∠PFC 和 ∠EPF 两部分，所以 ∠PEA = ∠PFC + ∠EPF，也就是 ∠EPF = ∠PEA - ∠PFC。";
+        }
+        return;
+      }
+
+      if (stage === 0) {
+        visualCopy.textContent = "先看原图：AB 和 CD 是两条平行线，E-P-F 是中间的折线。难点是角分散在 E、F 两处，不在 P 附近。";
+      } else if (stage === 1) {
+        visualCopy.textContent = "第一步：过折点 P 画一条平行线 l，让它也平行于 AB、CD。这样角度就有机会转移到 P 附近。";
+      } else if (stage === 2) {
+        visualCopy.textContent = "第二步：利用平行线性质，把 25° 搬到 P 左侧；150° 先看补角，得到右侧的 30°。";
+      } else {
+        visualCopy.textContent = "第三步：∠EPF 就是 P 点两边的小角相加，所以 25° + 30° = 55°。";
+      }
+    }
+
+    function fallbackStrategy(text) {
+      if (/求证|证明|=|相等/.test(text)) {
+        return strategies.find((strategy) => strategy.id === "congruence");
+      }
+      return null;
+    }
+
+    function analyze() {
+      const text = input.value.trim();
+      if (!text) {
+        input.focus();
+        return;
+      }
+
+      const scored = strategies
+        .map((strategy) => ({ ...strategy, score: scoreStrategy(text, strategy) }))
+        .filter((strategy) => strategy.score > 0)
+        .sort((a, b) => b.score - a.score);
+
+      let matches = scored.slice(0, 3);
+      const fallback = fallbackStrategy(text);
+      if (!matches.length && fallback) matches = [fallback];
+
+      currentMatches = matches;
+      const conditions = extractConditions(text);
+      const signals = [...new Set(matches.flatMap((match) => match.signals))].slice(0, 8);
+      const score = Math.min(96, Math.max(35, matches.reduce((sum, item) => sum + item.score, 0) * 7));
+
+      emptyState.classList.add("hidden");
+      resultBody.classList.remove("hidden");
+      subtitle.textContent = matches.length
+        ? "已匹配到可尝试的辅助线方向。"
+        : "暂未匹配到明确策略，可以补充更多题目信息。";
+      scoreText.textContent = matches.length ? `${score}%` : "20%";
+      scoreBar.style.setProperty("--value", matches.length ? `${score}%` : "20%");
+
+      renderChips(conditionsEl, conditions, "");
+      renderChips(signalsEl, signals, "green");
+      renderStrategies(matches);
+      renderHint(1);
+      setVisualStage(0);
+
+      summaryEl.classList.toggle("warning", !matches.length);
+      summaryEl.textContent = matches.length
+        ? matches.map((match) => match.summary).join(" ")
+        : "这道题的信息还不够结构化。建议在题干中明确写出已知条件、图形对象和求证目标。";
+    }
+
+    document.querySelectorAll(".example-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        input.value = button.dataset.example;
+        analyze();
+      });
+    });
+
+    analyzeBtn.addEventListener("click", analyze);
+    hintOneBtn.addEventListener("click", () => renderHint(1));
+    hintTwoBtn.addEventListener("click", () => renderHint(2));
+    solutionBtn.addEventListener("click", () => renderHint(3));
+    drawAuxBtn.addEventListener("click", () => setVisualStage(1));
+    moveAnglesBtn.addEventListener("click", () => setVisualStage(2));
+    combineAnglesBtn.addEventListener("click", () => setVisualStage(3));
+    resetVisualBtn.addEventListener("click", () => setVisualStage(0));
+    clearBtn.addEventListener("click", () => {
+      input.value = "";
+      currentMatches = [];
+      currentVisualStage = 0;
+      emptyState.classList.remove("hidden");
+      resultBody.classList.add("hidden");
+      subtitle.textContent = "先输入题目，系统会按策略库给出教学型提示。";
+      scoreText.textContent = "0%";
+      scoreBar.style.setProperty("--value", "0%");
+      input.focus();
+    });
+  </script>
+</body>
+</html>
